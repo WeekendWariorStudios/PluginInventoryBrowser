@@ -89,4 +89,10 @@ private:
 	FText  GetSourceText() const;
 	FText  GetFullDescription() const;
 	FText  GetMetadataText() const;
+
+	// ---- URL helpers --------------------------------------------------------
+	FString     GetBestURL() const;
+	FText       GetURLLabelText() const;
+	FText       GetURLDisplayText() const;
+	EVisibility GetURLVisibility() const;
 };

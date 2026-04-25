@@ -19,8 +19,14 @@ struct FPluginInventoryEntry
 	FString Description;
 	FString Category;
 	FString CreatedBy;
+	FString CreatedByURL;
 	FString EngineVersion;
 	FString VersionName;
+
+	// --- URLs ---
+	FString MarketplaceURL;
+	FString DocsURL;
+	FString SupportURL;
 
 	// --- Location ---
 	FString BaseDir;
@@ -63,8 +69,12 @@ struct FPluginInventoryEntry
 		Entry->Description             = Desc.Description;
 		Entry->Category                = Desc.Category.IsEmpty() ? TEXT("Other") : Desc.Category;
 		Entry->CreatedBy               = Desc.CreatedBy;
+		Entry->CreatedByURL            = Desc.CreatedByURL;
 		Entry->EngineVersion           = Desc.EngineVersion;
 		Entry->VersionName             = Desc.VersionName;
+		Entry->MarketplaceURL          = Desc.MarketplaceURL;
+		Entry->DocsURL                 = Desc.DocsURL;
+		Entry->SupportURL              = Desc.SupportURL;
 		Entry->BaseDir                 = Plugin->GetBaseDir();
 		Entry->DescriptorFileName      = Plugin->GetDescriptorFileName();
 		Entry->PluginType              = Plugin->GetType();

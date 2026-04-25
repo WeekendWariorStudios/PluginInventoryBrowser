@@ -84,14 +84,79 @@ void FOllamaPluginSummaryProvider::RequestSummary(
 		return;
 	}
 
-	// Build the JSON payload for /api/generate (non-streaming)
+	// If a URL is available, fetch the page first for richer context
+	const FString PluginURL = GetBestPluginURL(Entry);
+	if (!PluginURL.IsEmpty())
+	{
+		FetchPageContent(PluginURL, CacheKey, ModelName, Entry->Name, OnReady, Entry);
+	}
+	else
+	{
+		RequestSummaryCore(Entry, ModelName, FString(), CacheKey, OnReady);
+	}
+}
+
+void FOllamaPluginSummaryProvider::FetchPageContent(
+	const FString& URL,
+	const FString& CacheKey,
+	const FString& ModelName,
+	const FString& PluginName,
+	FOnSummaryReady OnReady,
+	FPluginInventoryEntryRef Entry)
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(URL);
+	Request->SetVerb(TEXT("GET"));
+	Request->SetHeader(TEXT("Accept"), TEXT("text/html,text/plain"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("PluginInventoryBrowser/1.0 (Unreal Engine Editor)"));
+	Request->SetTimeout(10.f);
+	Request->OnProcessRequestComplete().BindSP(
+		AsShared(),
+		&FOllamaPluginSummaryProvider::OnPageFetchResponse,
+		CacheKey,
+		ModelName,
+		PluginName,
+		OnReady,
+		Entry);
+
+	if (!Request->ProcessRequest())
+	{
+		RequestSummaryCore(Entry, ModelName, FString(), CacheKey, OnReady);
+	}
+}
+
+void FOllamaPluginSummaryProvider::OnPageFetchResponse(
+	TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> /*Request*/,
+	TSharedPtr<IHttpResponse, ESPMode::ThreadSafe> Response,
+	bool bConnectedSuccessfully,
+	FString CacheKey,
+	FString ModelName,
+	FString /*PluginName*/,
+	FOnSummaryReady OnReady,
+	FPluginInventoryEntryRef Entry)
+{
+	FString PageContent;
+	if (bConnectedSuccessfully && Response.IsValid() && Response->GetResponseCode() == 200)
+	{
+		PageContent = StripHTML(Response->GetContentAsString());
+	}
+	RequestSummaryCore(Entry, ModelName, PageContent, CacheKey, OnReady);
+}
+
+void FOllamaPluginSummaryProvider::RequestSummaryCore(
+	const FPluginInventoryEntryRef& Entry,
+	const FString& ModelName,
+	const FString& PageContent,
+	const FString& CacheKey,
+	FOnSummaryReady OnReady)
+{
 	FString SystemPrompt;
 	FString UserPrompt;
-	BuildSummaryPrompt(Entry, SystemPrompt, UserPrompt);
+	BuildSummaryPrompt(Entry, PageContent, SystemPrompt, UserPrompt);
 
-	// Generation options – allow a generous token budget for 1-2 paragraphs
+	// Generation options – generous token budget for 2-5 paragraphs
 	TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
-	Options->SetNumberField(TEXT("num_predict"), 400);
+	Options->SetNumberField(TEXT("num_predict"), 700);
 	Options->SetNumberField(TEXT("temperature"), 0.4);
 	Options->SetNumberField(TEXT("top_p"),       0.9);
 
@@ -112,9 +177,8 @@ void FOllamaPluginSummaryProvider::RequestSummary(
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	Request->SetContentAsString(BodyString);
 
-	// Capture entry by value so it outlives the lambda
 	FPluginInventoryEntryRef EntryCopy = Entry;
-	Request->SetTimeout(120.f);
+	Request->SetTimeout(180.f);
 	Request->OnProcessRequestComplete().BindSP(
 		AsShared(),
 		&FOllamaPluginSummaryProvider::OnGenerateResponse,
@@ -125,11 +189,11 @@ void FOllamaPluginSummaryProvider::RequestSummary(
 
 	if (!Request->ProcessRequest())
 	{
-		// Could not even dispatch: fall back immediately
 		const FString Fallback = BuildFallbackSummary(Entry);
 		OnReady.ExecuteIfBound(Entry->Name, Fallback, false);
 	}
 }
+
 
 void FOllamaPluginSummaryProvider::FetchAvailableModels(FOnModelsReady OnReady)
 {
@@ -215,11 +279,166 @@ void FOllamaPluginSummaryProvider::InvalidateCacheForModel(const FString& ModelN
 	return Summary;
 }
 
-/*static*/ void FOllamaPluginSummaryProvider::BuildSummaryPrompt(
+/*static*/ FString FOllamaPluginSummaryProvider::GetBestPluginURL(const FPluginInventoryEntryRef& Entry)
+{
+	if (!Entry->MarketplaceURL.IsEmpty()) return Entry->MarketplaceURL;
+	if (!Entry->DocsURL.IsEmpty())        return Entry->DocsURL;
+	if (!Entry->SupportURL.IsEmpty())     return Entry->SupportURL;
+	if (!Entry->CreatedByURL.IsEmpty())   return Entry->CreatedByURL;
+	return FString();
+}
+
+/*static*/ FString FOllamaPluginSummaryProvider::StripHTML(const FString& HTML)
+{
+	FString Result;
+	Result.Reserve(HTML.Len());
+
+	bool   bInTag  = false;
+	FString TagBuf;
+
+	const TCHAR* Data = *HTML;
+	const int32  Len  = HTML.Len();
+
+	for (int32 i = 0; i < Len; ++i)
+	{
+		const TCHAR Ch = Data[i];
+		if (bInTag)
+		{
+			TagBuf += Ch;
+			if (Ch == TEXT('>'))
+			{
+				bInTag = false;
+				// Inject a space at block-level / br boundaries for readability
+				const FString Lower = TagBuf.ToLower();
+				if (Lower.Contains(TEXT("<br"))   || Lower.Contains(TEXT("/p>")) ||
+				    Lower.Contains(TEXT("/div>")) || Lower.Contains(TEXT("/li>")) ||
+				    Lower.Contains(TEXT("/h1>")) || Lower.Contains(TEXT("/h2>")) ||
+				    Lower.Contains(TEXT("/h3>")) || Lower.Contains(TEXT("/tr>")))
+				{
+					Result += TEXT(" ");
+				}
+				TagBuf.Reset();
+			}
+		}
+		else if (Ch == TEXT('<'))
+		{
+			bInTag = true;
+			TagBuf.Reset();
+			TagBuf += Ch;
+		}
+		else
+		{
+			Result += Ch;
+		}
+	}
+
+	// Decode common HTML entities
+	Result.ReplaceInline(TEXT("&amp;"),  TEXT("&"),  ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&lt;"),   TEXT("<"),  ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&gt;"),   TEXT(">"),  ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&quot;"), TEXT("\""), ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&apos;"), TEXT("'"),  ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&nbsp;"), TEXT(" "),  ESearchCase::CaseSensitive);
+	Result.ReplaceInline(TEXT("&#39;"),  TEXT("'"),  ESearchCase::CaseSensitive);
+
+	// Collapse runs of whitespace, keep at most one blank line
+	TArray<FString> Lines;
+	Result.ParseIntoArray(Lines, TEXT("\n"), false);
+	FString Cleaned;
+	int32 BlankRun = 0;
+	for (FString& Line : Lines)
+	{
+		while (Line.Contains(TEXT("  "))) { Line.ReplaceInline(TEXT("  "), TEXT(" ")); }
+		Line = Line.TrimStartAndEnd();
+		if (Line.IsEmpty())
+		{
+			if (++BlankRun <= 1) { Cleaned += TEXT("\n"); }
+		}
+		else
+		{
+			BlankRun = 0;
+			Cleaned += Line + TEXT("\n");
+		}
+	}
+
+	Cleaned = Cleaned.TrimStartAndEnd();
+	if (Cleaned.Len() > 3000)
+	{
+		Cleaned = Cleaned.Left(2997) + TEXT("…");
+	}
+	return Cleaned;
+}
+
+
 	const FPluginInventoryEntryRef& Entry,
+	const FString& PageContent,
 	FString& OutSystem,
 	FString& OutUser)
 {
+	const FString& Desc = Entry->Description;
+	const FString TruncDesc = Desc.Len() > 800 ? Desc.Left(797) + TEXT("…") : Desc;
+
+	const FString PlatformList = Entry->SupportedTargetPlatforms.Num() > 0
+		? FString::Join(Entry->SupportedTargetPlatforms, TEXT(", "))
+		: TEXT("not specified");
+
+	// ---- System role --------------------------------------------------------
+	OutSystem =
+		TEXT("You are an expert Unreal Engine developer writing plugin documentation for a plugin browser tool.\n")
+		TEXT("When given plugin metadata, write a clear, accurate summary of 2 to 5 paragraphs:\n")
+		TEXT("\n")
+		TEXT("  Paragraph 1 – Core Purpose: Explain what the plugin does, its key features,\n")
+		TEXT("  and the core problem or workflow it addresses for Unreal Engine developers.\n")
+		TEXT("\n")
+		TEXT("  Paragraph 2 – Use Cases: Provide 3-5 concrete, practical use cases or\n")
+		TEXT("  scenarios where a developer would use this plugin. Be specific.\n")
+		TEXT("\n")
+		TEXT("  Paragraph 3 – Target Audience & Integration: Who benefits most from this\n")
+		TEXT("  plugin (e.g. game programmer, technical artist, solo dev, studio)? How does\n")
+		TEXT("  it integrate with the Unreal Engine ecosystem or complement other plugins?\n")
+		TEXT("\n")
+		TEXT("  Paragraphs 4-5 (include only if the information is available and relevant):\n")
+		TEXT("  Technical notes, platform constraints, required setup, experimental status,\n")
+		TEXT("  known limitations, required engine version, or licensing considerations.\n")
+		TEXT("\n")
+		TEXT("Rules:\n")
+		TEXT("  - Third person, present tense.\n")
+		TEXT("  - Do NOT start with the plugin name or \"This plugin\".\n")
+		TEXT("  - No bullet points, headers, or markdown formatting.\n")
+		TEXT("  - Separate each paragraph with a single blank line.\n")
+		TEXT("  - Output only the paragraphs, nothing else.");
+
+	// ---- User message -------------------------------------------------------
+	FString PageSection;
+	if (!PageContent.IsEmpty())
+	{
+		PageSection = FString::Printf(
+			TEXT("\nAdditional context from the plugin's web page:\n---\n%s\n---\n"),
+			*PageContent);
+	}
+
+	OutUser = FString::Printf(
+		TEXT("Write a detailed 2–5 paragraph summary for this Unreal Engine plugin.\n\n")
+		TEXT("Name:        %s\n")
+		TEXT("Friendly:    %s\n")
+		TEXT("Category:    %s\n")
+		TEXT("Author:      %s\n")
+		TEXT("Version:     %s\n")
+		TEXT("Modules:     %d\n")
+		TEXT("Dependencies:%d\n")
+		TEXT("Platforms:   %s\n")
+		TEXT("Description: %s%s"),
+		*Entry->Name,
+		*Entry->FriendlyName,
+		*Entry->Category,
+		*Entry->CreatedBy,
+		*Entry->VersionName,
+		Entry->ModuleCount,
+		Entry->DependencyCount,
+		*PlatformList,
+		*TruncDesc,
+		*PageSection);
+}
 	const FString& Desc = Entry->Description;
 	const FString TruncDesc = Desc.Len() > 800 ? Desc.Left(797) + TEXT("…") : Desc;
 

@@ -72,11 +72,46 @@ private:
 	void LoadCacheFromDisk();
 	void SaveCacheToDisk();
 
+	/** Returns the first non-empty URL from MarketplaceURL > DocsURL > SupportURL > CreatedByURL. */
+	static FString GetBestPluginURL(const FPluginInventoryEntryRef& Entry);
+
+	/** Strip HTML tags and decode common entities to plain text. Truncates to ~3000 chars. */
+	static FString StripHTML(const FString& HTML);
+
 	/** Builds the system prompt and user message used for /api/generate. */
 	static void BuildSummaryPrompt(
 		const FPluginInventoryEntryRef& Entry,
+		const FString& PageContent,
 		FString& OutSystem,
 		FString& OutUser);
+
+	/** Initiate a page content fetch for the given URL, then call RequestSummaryCore. */
+	void FetchPageContent(
+		const FString& URL,
+		const FString& CacheKey,
+		const FString& ModelName,
+		const FString& PluginName,
+		FOnSummaryReady OnReady,
+		FPluginInventoryEntryRef Entry);
+
+	/** Called when the page fetch completes; strips HTML then calls RequestSummaryCore. */
+	void OnPageFetchResponse(
+		TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> Request,
+		TSharedPtr<IHttpResponse, ESPMode::ThreadSafe> Response,
+		bool bConnectedSuccessfully,
+		FString CacheKey,
+		FString ModelName,
+		FString PluginName,
+		FOnSummaryReady OnReady,
+		FPluginInventoryEntryRef Entry);
+
+	/** Core Ollama generate call; PageContent may be empty if no URL available. */
+	void RequestSummaryCore(
+		const FPluginInventoryEntryRef& Entry,
+		const FString& ModelName,
+		const FString& PageContent,
+		const FString& CacheKey,
+		FOnSummaryReady OnReady);
 
 	void OnGenerateResponse(
 		TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> Request,

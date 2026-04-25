@@ -16,8 +16,10 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Text/SMultiLineEditableText.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SHyperlink.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "SPluginDetailsWindow"
@@ -224,12 +226,49 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 			// OVERVIEW – metadata grid
 			// =========================================================
 			+ SScrollBox::Slot()
-			.Padding(16.f, 4.f, 16.f, 12.f)
+			.Padding(16.f, 4.f, 16.f, 4.f)
 			[
 				SNew(STextBlock)
 				.Text(this, &SPluginDetailsWindow::GetMetadataText)
 				.AutoWrapText(true)
 				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			]
+
+			// =========================================================
+			// URL HYPERLINK (if available)
+			// =========================================================
+			+ SScrollBox::Slot()
+			.Padding(16.f, 2.f, 16.f, 10.f)
+			[
+				SNew(SBox)
+				.Visibility(this, &SPluginDetailsWindow::GetURLVisibility)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(0.f, 0.f, 5.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Text(this, &SPluginDetailsWindow::GetURLLabelText)
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(SHyperlink)
+						.Text(this, &SPluginDetailsWindow::GetURLDisplayText)
+						.OnNavigate_Lambda([this]()
+						{
+							const FString URL = GetBestURL();
+							if (!URL.IsEmpty())
+							{
+								FPlatformProcess::LaunchURL(*URL, nullptr, nullptr);
+							}
+						})
+					]
+				]
 			]
 
 			// =========================================================
@@ -561,6 +600,42 @@ FText SPluginDetailsWindow::GetMetadataText() const
 	Lines.Add(FString::Printf(TEXT("Base dir: %s"), *EntryPtr->BaseDir));
 
 	return FText::FromString(FString::Join(Lines, TEXT("\n")));
+}
+
+// ============================================================================
+// URL helpers
+// ============================================================================
+
+FString SPluginDetailsWindow::GetBestURL() const
+{
+	if (!EntryPtr.IsValid()) return FString();
+	if (!EntryPtr->MarketplaceURL.IsEmpty()) return EntryPtr->MarketplaceURL;
+	if (!EntryPtr->DocsURL.IsEmpty())        return EntryPtr->DocsURL;
+	if (!EntryPtr->SupportURL.IsEmpty())     return EntryPtr->SupportURL;
+	if (!EntryPtr->CreatedByURL.IsEmpty())   return EntryPtr->CreatedByURL;
+	return FString();
+}
+
+FText SPluginDetailsWindow::GetURLLabelText() const
+{
+	if (!EntryPtr.IsValid()) return FText::GetEmpty();
+	if (!EntryPtr->MarketplaceURL.IsEmpty()) return LOCTEXT("URLLabelMarketplace", "Marketplace:");
+	if (!EntryPtr->DocsURL.IsEmpty())        return LOCTEXT("URLLabelDocs",        "Docs:");
+	if (!EntryPtr->SupportURL.IsEmpty())     return LOCTEXT("URLLabelSupport",     "Support:");
+	if (!EntryPtr->CreatedByURL.IsEmpty())   return LOCTEXT("URLLabelAuthor",      "Author:");
+	return FText::GetEmpty();
+}
+
+FText SPluginDetailsWindow::GetURLDisplayText() const
+{
+	return FText::FromString(GetBestURL());
+}
+
+EVisibility SPluginDetailsWindow::GetURLVisibility() const
+{
+	return (EntryPtr.IsValid() && !GetBestURL().IsEmpty())
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 #undef LOCTEXT_NAMESPACE

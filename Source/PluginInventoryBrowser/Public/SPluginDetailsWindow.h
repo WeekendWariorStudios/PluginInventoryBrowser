@@ -34,7 +34,7 @@ public:
 		: _Entry()
 		, _SelectedModel(TEXT("qwen3:0.6b"))
 	{}
-		SLATE_ARGUMENT(FPluginInventoryEntryRef, Entry)
+		SLATE_ARGUMENT(FPluginInventoryEntryPtr, Entry)
 		SLATE_ARGUMENT(FString, SelectedModel)
 		SLATE_EVENT(FOnPluginStateChanged, OnPluginStateChanged)
 		/** The Ollama summary provider shared from the browser (may be null, in which case a local one is used). */
@@ -48,19 +48,20 @@ public:
 	 * Returns the window so the caller can keep a weak reference.
 	 */
 	static TSharedRef<SWindow> Show(
-		const FPluginInventoryEntryRef& Entry,
+		const FPluginInventoryEntryPtr& Entry,
 		const FString& SelectedModel,
 		const TSharedPtr<FOllamaPluginSummaryProvider>& SummaryProvider,
 		FOnPluginStateChanged OnPluginStateChanged);
 
 private:
-	FPluginInventoryEntryRef EntryPtr;
+	FPluginInventoryEntryPtr EntryPtr;
 	FString CurrentModel;
 	FOnPluginStateChanged OnPluginStateChangedDelegate;
 	TSharedPtr<FOllamaPluginSummaryProvider> OllamaProvider;
 
 	// ---- Icon brush ---------------------------------------------------------
 	TSharedPtr<FSlateBrush> IconBrush;
+	TSharedPtr<FSlateBrush> AIIconBrush;
 
 	// ---- Summary UI ---------------------------------------------------------
 	TSharedPtr<STextBlock>            SummaryText;

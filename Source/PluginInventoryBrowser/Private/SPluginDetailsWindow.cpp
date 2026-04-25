@@ -27,11 +27,26 @@
 // ============================================================================
 
 /*static*/ TSharedRef<SWindow> SPluginDetailsWindow::Show(
-	const FPluginInventoryEntryRef& Entry,
+	const FPluginInventoryEntryPtr& Entry,
 	const FString& SelectedModel,
 	const TSharedPtr<FOllamaPluginSummaryProvider>& SummaryProvider,
 	FOnPluginStateChanged OnPluginStateChanged)
 {
+	if (!Entry.IsValid())
+	{
+		return SNew(SWindow)
+			.Title(LOCTEXT("WindowTitleInvalid", "Plugin Details"))
+			.ClientSize(FVector2D(400.f, 140.f))
+			.SizingRule(ESizingRule::UserSized)
+			.SupportsMaximize(false)
+			.SupportsMinimize(false)
+			.AutoCenter(EAutoCenter::PreferredWorkArea)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("InvalidEntry", "No plugin entry was available to display."))
+			];
+	}
+
 	const FText Title = FText::Format(
 		LOCTEXT("WindowTitle", "Plugin Details – {0}"),
 		FText::FromString(Entry->FriendlyName));
@@ -67,6 +82,21 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 	OnPluginStateChangedDelegate = InArgs._OnPluginStateChanged;
 	OllamaProvider            = InArgs._SummaryProvider;
 
+	if (!EntryPtr.IsValid())
+	{
+		ChildSlot
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+			.Padding(16.f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("InvalidEntry", "No plugin entry was available to display."))
+			]
+		];
+		return;
+	}
+
 	if (!OllamaProvider.IsValid())
 	{
 		OllamaProvider = MakeShared<FOllamaPluginSummaryProvider>();
@@ -79,6 +109,19 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 	if (IconPx.X > 0 && IconPx.Y > 0)
 	{
 		IconBrush = MakeShared<FSlateDynamicImageBrush>(BrushKey, FVector2D(IconPx.X, IconPx.Y));
+	}
+
+	// Load AI icon from PluginInventoryBrowser Resources/ai.png
+	TSharedPtr<IPlugin> PIBPlugin = IPluginManager::Get().FindPlugin(TEXT("PluginInventoryBrowser"));
+	if (PIBPlugin.IsValid())
+	{
+		const FString AIIconPath = PIBPlugin->GetBaseDir() / TEXT("Resources/ai.png");
+		const FName   AIBrushKey(*AIIconPath);
+		const FIntPoint AIIconPx = FSlateApplication::Get().GetRenderer()->GenerateDynamicImageResource(AIBrushKey);
+		if (AIIconPx.X > 0 && AIIconPx.Y > 0)
+		{
+			AIIconBrush = MakeShared<FSlateDynamicImageBrush>(AIBrushKey, FVector2D(16.f, 16.f));
+		}
 	}
 
 	ChildSlot
@@ -239,7 +282,25 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 						return FReply::Handled();
 					})
 					[
-						SNew(STextBlock).Text(LOCTEXT("GenerateSummaryBtn", "Generate AI Summary"))
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(0.f, 0.f, 5.f, 0.f)
+						[
+							SNew(SImage)
+							.Image_Lambda([this]() -> const FSlateBrush*
+							{
+								return AIIconBrush.IsValid() ? AIIconBrush.Get() : FAppStyle::Get().GetBrush("Icons.BulletPoint");
+							})
+							.DesiredSizeOverride(FVector2D(16.f, 16.f))
+						]
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock).Text(LOCTEXT("GenerateSummaryBtn", "Generate AI Summary"))
+						]
 					]
 				]
 			]
@@ -307,7 +368,7 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 
 void SPluginDetailsWindow::RequestSummary()
 {
-	if (!SummaryText.IsValid() || !OllamaProvider.IsValid())
+	if (!SummaryText.IsValid() || !OllamaProvider.IsValid() || !EntryPtr.IsValid())
 	{
 		return;
 	}
@@ -325,7 +386,7 @@ void SPluginDetailsWindow::RequestSummary()
 
 	FOllamaPluginSummaryProvider::FOnSummaryReady Delegate;
 	Delegate.BindSP(this, &SPluginDetailsWindow::OnSummaryReady);
-	OllamaProvider->RequestSummary(EntryPtr, CurrentModel, Delegate);
+	OllamaProvider->RequestSummary(EntryPtr.ToSharedRef(), CurrentModel, Delegate);
 }
 
 void SPluginDetailsWindow::OnSummaryReady(const FString& /*PluginName*/, const FString& Summary, bool /*bWasAI*/)

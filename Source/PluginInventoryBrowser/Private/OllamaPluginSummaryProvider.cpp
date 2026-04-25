@@ -85,12 +85,22 @@ void FOllamaPluginSummaryProvider::RequestSummary(
 	}
 
 	// Build the JSON payload for /api/generate (non-streaming)
-	const FString Prompt = BuildSummaryPrompt(Entry);
+	FString SystemPrompt;
+	FString UserPrompt;
+	BuildSummaryPrompt(Entry, SystemPrompt, UserPrompt);
+
+	// Generation options – allow a generous token budget for 1-2 paragraphs
+	TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
+	Options->SetNumberField(TEXT("num_predict"), 400);
+	Options->SetNumberField(TEXT("temperature"), 0.4);
+	Options->SetNumberField(TEXT("top_p"),       0.9);
 
 	TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
-	Body->SetStringField(TEXT("model"),  ModelName);
-	Body->SetStringField(TEXT("prompt"), Prompt);
-	Body->SetBoolField  (TEXT("stream"), false);
+	Body->SetStringField(TEXT("model"),   ModelName);
+	Body->SetStringField(TEXT("system"),  SystemPrompt);
+	Body->SetStringField(TEXT("prompt"),  UserPrompt);
+	Body->SetBoolField  (TEXT("stream"),  false);
+	Body->SetObjectField(TEXT("options"), Options);
 
 	FString BodyString;
 	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyString);
@@ -104,8 +114,9 @@ void FOllamaPluginSummaryProvider::RequestSummary(
 
 	// Capture entry by value so it outlives the lambda
 	FPluginInventoryEntryRef EntryCopy = Entry;
-	Request->OnProcessRequestComplete().BindRaw(
-		this,
+	Request->SetTimeout(120.f);
+	Request->OnProcessRequestComplete().BindSP(
+		AsShared(),
 		&FOllamaPluginSummaryProvider::OnGenerateResponse,
 		CacheKey,
 		Entry->Name,
@@ -125,8 +136,9 @@ void FOllamaPluginSummaryProvider::FetchAvailableModels(FOnModelsReady OnReady)
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 	Request->SetURL(FString(OllamaBaseUrl) + TEXT("/api/tags"));
 	Request->SetVerb(TEXT("GET"));
-	Request->OnProcessRequestComplete().BindRaw(
-		this,
+	Request->SetTimeout(10.f);
+	Request->OnProcessRequestComplete().BindSP(
+		AsShared(),
 		&FOllamaPluginSummaryProvider::OnTagsResponse,
 		OnReady);
 

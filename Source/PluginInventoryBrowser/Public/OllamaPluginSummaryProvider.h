@@ -20,7 +20,7 @@ class IHttpResponse;
  * - If Ollama is offline or the model is missing the fallback path produces
  *   a deterministic metadata-based summary without blocking.
  */
-class FOllamaPluginSummaryProvider
+class FOllamaPluginSummaryProvider : public TSharedFromThis<FOllamaPluginSummaryProvider>
 {
 public:
 	DECLARE_DELEGATE_ThreeParams(FOnSummaryReady,
@@ -60,7 +60,7 @@ public:
 	static FString BuildFallbackSummary(const FPluginInventoryEntryRef& Entry);
 
 private:
-	static constexpr const TCHAR* OllamaBaseUrl = TEXT("http://localhost:11434");
+	static constexpr const TCHAR* OllamaBaseUrl = TEXT("http://127.0.0.1:11434");
 
 	/** In-memory summary cache: key = PluginName + "_" + ModelName */
 	TMap<FString, FString> SummaryCache;

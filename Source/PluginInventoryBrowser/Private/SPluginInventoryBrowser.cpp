@@ -35,6 +35,10 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Styling/AppStyle.h"
+#include "HAL/PlatformProcess.h"
+#include "Brushes/SlateDynamicImageBrush.h"
+#include "Rendering/SlateRenderer.h"
+#include "Widgets/Images/SImage.h"
 
 #define LOCTEXT_NAMESPACE "SPluginInventoryBrowser"
 
@@ -343,6 +347,21 @@ void SPluginInventoryBrowser::Construct(const FArguments& InArgs)
 	// Prime available models from Ollama (best-effort; updates AvailableOllamaModels)
 	RefreshAvailableModels();
 
+	// Load Ollama brand icon from plugin Resources
+	{
+		TSharedPtr<IPlugin> PIBPlugin = IPluginManager::Get().FindPlugin(TEXT("PluginInventoryBrowser"));
+		if (PIBPlugin.IsValid())
+		{
+			const FString OllamaIconPath = PIBPlugin->GetBaseDir() / TEXT("Resources/ollama.png");
+			const FName   OllamaBrushKey(*OllamaIconPath);
+			const FIntPoint OlamaPx = FSlateApplication::Get().GetRenderer()->GenerateDynamicImageResource(OllamaBrushKey);
+			if (OlamaPx.X > 0 && OlamaPx.Y > 0)
+			{
+				OllamaIconBrush = MakeShared<FSlateDynamicImageBrush>(OllamaBrushKey, FVector2D(16.f, 16.f));
+			}
+		}
+	}
+
 	RegisterDirectoryWatchers();
 	RebuildInventory(); // synchronous on first open
 
@@ -544,6 +563,54 @@ TSharedRef<SWidget> SPluginInventoryBrowser::BuildToolbar()
 			+ SWrapBox::Slot()
 			[
 				BuildModelPickerWidget()
+			]
+
+			// Get Ollama button
+			+ SWrapBox::Slot()
+			[
+				SNew(SButton)
+				.ToolTipText(LOCTEXT("OllamaDownloadTip", "Download Ollama to enable AI plugin summaries."))
+				.OnClicked_Lambda([]() -> FReply
+				{
+					FPlatformProcess::LaunchURL(TEXT("https://ollama.com/download"), nullptr, nullptr);
+					return FReply::Handled();
+				})
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(0.f, 0.f, 4.f, 0.f)
+					[
+						SNew(SImage)
+						.Image_Lambda([this]() -> const FSlateBrush*
+						{
+							return OllamaIconBrush.IsValid() ? OllamaIconBrush.Get() : FAppStyle::Get().GetBrush("Icons.BulletPoint");
+						})
+						.DesiredSizeOverride(FVector2D(16.f, 16.f))
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock).Text(LOCTEXT("OllamaDownloadBtn", "Get Ollama"))
+					]
+				]
+			]
+
+			// Ollama models search button
+			+ SWrapBox::Slot()
+			[
+				SNew(SButton)
+				.ToolTipText(LOCTEXT("OllamaModelsTip", "Browse available Ollama models."))
+				.OnClicked_Lambda([]() -> FReply
+				{
+					FPlatformProcess::LaunchURL(TEXT("https://ollama.com/search"), nullptr, nullptr);
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("OllamaModelsBtn", "⊞ Ollama Models"))
+				]
 			]
 		];
 }
@@ -894,7 +961,7 @@ void SPluginInventoryBrowser::OnTileDoubleClicked(FPluginInventoryEntryPtr Item)
 	StateChangedDelegate.BindSP(this, &SPluginInventoryBrowser::RebuildInventory);
 
 	TSharedRef<SWindow> NewWindow = SPluginDetailsWindow::Show(
-		Item.ToSharedRef(),
+		Item,
 		SelectedOllamaModel,
 		SummaryProvider,
 		StateChangedDelegate);
@@ -1082,10 +1149,7 @@ TSharedRef<SWidget> SPluginInventoryBrowser::BuildModelPickerWidget()
 			SNew(STextBlock)
 			.Text(this, &SPluginInventoryBrowser::GetSelectedModelText)
 		]
-		.MenuContent()
-		[
-			BuildModelPickerMenu()
-		];
+		.OnGetMenuContent(FOnGetContent::CreateSP(this, &SPluginInventoryBrowser::BuildModelPickerMenu));
 }
 
 TSharedRef<SWidget> SPluginInventoryBrowser::BuildModelPickerMenu()

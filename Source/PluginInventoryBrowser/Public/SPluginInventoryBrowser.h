@@ -84,6 +84,9 @@ private:
 	/** Weak ref to the currently open details window (at most one at a time). */
 	TWeakPtr<SWindow> ActiveDetailsWindow;
 
+	/** Ollama brand icon loaded from plugin Resources/ollama.png. */
+	TSharedPtr<FSlateBrush> OllamaIconBrush;
+
 	// ---- Active timers ------------------------------------------------------
 	TSharedPtr<FActiveTimerHandle> RebuildTimerHandle;
 	TSharedPtr<FActiveTimerHandle> FilterTimerHandle;

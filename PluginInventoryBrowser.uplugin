@@ -2,11 +2,11 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
-	"FriendlyName": "Plugin Inventory Browser",
+	"FriendlyName": "Plugin Browser",
 	"Description": "Live editor tool that shows all discovered Unreal Engine and project plugins in a searchable, filterable tile grid backed by IPluginManager.",
 	"Category": "Editor",
-	"CreatedBy": "StateOfRuin",
-	"CreatedByURL": "",
+	"CreatedBy": "Weekend Warrior Studios",
+	"CreatedByURL": "https://github.com/WeekendWariorStudios",
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
@@ -19,5 +19,7 @@
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
-	]
+	],
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false
 }

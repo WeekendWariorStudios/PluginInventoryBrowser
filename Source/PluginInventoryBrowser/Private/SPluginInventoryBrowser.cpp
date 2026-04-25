@@ -883,7 +883,7 @@ TSharedRef<ITableRow> SPluginInventoryBrowser::OnGenerateTile(
 		];
 }
 
-void SPluginInventoryBrowser::OnTileDoubleClicked(FPluginInventoryEntryRef Item)
+void SPluginInventoryBrowser::OnTileDoubleClicked(FPluginInventoryEntryPtr Item)
 {
 	if (!Item.IsValid() || Item->Name.IsEmpty())
 	{

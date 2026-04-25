@@ -385,28 +385,32 @@ void FOllamaPluginSummaryProvider::BuildSummaryPrompt(
 	// ---- System role --------------------------------------------------------
 	OutSystem =
 		TEXT("You are an expert Unreal Engine developer writing plugin documentation for a plugin browser tool.\n")
-		TEXT("When given plugin metadata, write a clear, accurate summary of 2 to 5 paragraphs:\n")
+		TEXT("When given plugin metadata, write a structured markdown summary using EXACTLY this format:\n")
 		TEXT("\n")
-		TEXT("  Paragraph 1 – Core Purpose: Explain what the plugin does, its key features,\n")
-		TEXT("  and the core problem or workflow it addresses for Unreal Engine developers.\n")
+		TEXT("## Core Purpose\n")
+		TEXT("Explain what the plugin does, its key features, and the core problem it addresses. 2-4 sentences.\n")
 		TEXT("\n")
-		TEXT("  Paragraph 2 – Use Cases: Provide 3-5 concrete, practical use cases or\n")
-		TEXT("  scenarios where a developer would use this plugin. Be specific.\n")
+		TEXT("## Use Cases\n")
+		TEXT("List 3-5 concrete, practical scenarios where a developer would use this plugin.\n")
+		TEXT("Start each item on a new line with \"- \".\n")
 		TEXT("\n")
-		TEXT("  Paragraph 3 – Target Audience & Integration: Who benefits most from this\n")
-		TEXT("  plugin (e.g. game programmer, technical artist, solo dev, studio)? How does\n")
-		TEXT("  it integrate with the Unreal Engine ecosystem or complement other plugins?\n")
+		TEXT("## Target Audience & Integration\n")
+		TEXT("Describe who benefits most (e.g. gameplay programmer, technical artist, solo dev)\n")
+		TEXT("and how the plugin integrates with Unreal Engine or complements other tools. 2-3 sentences.\n")
 		TEXT("\n")
-		TEXT("  Paragraphs 4-5 (include only if the information is available and relevant):\n")
-		TEXT("  Technical notes, platform constraints, required setup, experimental status,\n")
-		TEXT("  known limitations, required engine version, or licensing considerations.\n")
+		TEXT("## Technical Notes\n")
+		TEXT("(Include ONLY if relevant) Cover platform constraints, required setup, experimental status,\n")
+		TEXT("known limitations, required engine version, or licensing. Omit this section entirely if\n")
+		TEXT("no such information is available.\n")
 		TEXT("\n")
 		TEXT("Rules:\n")
-		TEXT("  - Third person, present tense.\n")
-		TEXT("  - Do NOT start with the plugin name or \"This plugin\".\n")
-		TEXT("  - No bullet points, headers, or markdown formatting.\n")
-		TEXT("  - Separate each paragraph with a single blank line.\n")
-		TEXT("  - Output only the paragraphs, nothing else.");
+		TEXT("  - Use ## for section headers EXACTLY as shown. No other header levels.\n")
+		TEXT("  - Start use case list items with \"- \".\n")
+		TEXT("  - Do NOT use bold (**), italic (*), or any other inline markdown decorators.\n")
+		TEXT("  - Do NOT use tables, code blocks, or nested lists.\n")
+		TEXT("  - Do NOT start \"Core Purpose\" with the plugin name or \"This plugin\".\n")
+		TEXT("  - Third person, present tense throughout.\n")
+		TEXT("  - Output ONLY the markdown sections above, nothing else.");
 
 	// ---- User message -------------------------------------------------------
 	FString PageSection;
@@ -418,7 +422,7 @@ void FOllamaPluginSummaryProvider::BuildSummaryPrompt(
 	}
 
 	OutUser = FString::Printf(
-		TEXT("Write a detailed 2–5 paragraph summary for this Unreal Engine plugin.\n\n")
+		TEXT("Write a markdown-formatted summary for this Unreal Engine plugin.\n\n")
 		TEXT("Name:        %s\n")
 		TEXT("Friendly:    %s\n")
 		TEXT("Category:    %s\n")

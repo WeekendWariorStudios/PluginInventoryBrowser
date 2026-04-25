@@ -347,10 +347,13 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 			+ SScrollBox::Slot()
 			.Padding(16.f, 0.f, 16.f, 12.f)
 			[
-				SAssignNew(SummaryText, STextBlock)
-				.Text(LOCTEXT("SummaryPending", "Click Generate AI Summary to create one with Ollama."))
-				.AutoWrapText(true)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				SAssignNew(SummaryContainer, SBox)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("SummaryPending", "Click Generate AI Summary to create one with Ollama."))
+					.AutoWrapText(true)
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				]
 			]
 
 			// =========================================================
@@ -407,13 +410,18 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 
 void SPluginDetailsWindow::RequestSummary()
 {
-	if (!SummaryText.IsValid() || !OllamaProvider.IsValid() || !EntryPtr.IsValid())
+	if (!SummaryContainer.IsValid() || !OllamaProvider.IsValid() || !EntryPtr.IsValid())
 	{
 		return;
 	}
 
 	bSummaryPending = true;
-	SummaryText->SetText(LOCTEXT("SummaryGenerating", "Generating AI summary…"));
+	SummaryContainer->SetContent(
+		SNew(STextBlock)
+		.Text(LOCTEXT("SummaryGenerating", "Generating AI summary…"))
+		.AutoWrapText(true)
+		.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+	);
 	if (SummaryThrobber.IsValid())
 	{
 		SummaryThrobber->SetVisibility(EVisibility::Visible);
@@ -431,9 +439,9 @@ void SPluginDetailsWindow::RequestSummary()
 void SPluginDetailsWindow::OnSummaryReady(const FString& /*PluginName*/, const FString& Summary, bool /*bWasAI*/)
 {
 	bSummaryPending = false;
-	if (SummaryText.IsValid())
+	if (SummaryContainer.IsValid())
 	{
-		SummaryText->SetText(FText::FromString(Summary));
+		SummaryContainer->SetContent(BuildMarkdownWidget(Summary));
 	}
 	if (SummaryThrobber.IsValid())
 	{
@@ -600,6 +608,86 @@ FText SPluginDetailsWindow::GetMetadataText() const
 	Lines.Add(FString::Printf(TEXT("Base dir: %s"), *EntryPtr->BaseDir));
 
 	return FText::FromString(FString::Join(Lines, TEXT("\n")));
+}
+
+// ============================================================================
+// Markdown renderer
+// ============================================================================
+
+TSharedRef<SWidget> SPluginDetailsWindow::BuildMarkdownWidget(const FString& Markdown)
+{
+	TSharedRef<SVerticalBox> VBox = SNew(SVerticalBox);
+
+	TArray<FString> Lines;
+	Markdown.ParseIntoArrayLines(Lines, /*bCullEmpty=*/false);
+
+	for (FString Line : Lines)
+	{
+		// Strip stray inline markers the model may emit despite instructions
+		Line.ReplaceInline(TEXT("**"), TEXT(""));
+		Line.ReplaceInline(TEXT("__"), TEXT(""));
+
+		if (Line.StartsWith(TEXT("## ")))
+		{
+			VBox->AddSlot()
+			.AutoHeight()
+			.Padding(0.f, 10.f, 0.f, 3.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(Line.Mid(3)))
+				.TextStyle(FAppStyle::Get(), "NormalText.Important")
+				.AutoWrapText(true)
+			];
+		}
+		else if (Line.StartsWith(TEXT("### ")))
+		{
+			VBox->AddSlot()
+			.AutoHeight()
+			.Padding(0.f, 7.f, 0.f, 2.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(Line.Mid(4)))
+				.TextStyle(FAppStyle::Get(), "NormalText.Important")
+				.AutoWrapText(true)
+				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			];
+		}
+		else if (Line.StartsWith(TEXT("- ")) || Line.StartsWith(TEXT("* ")))
+		{
+			VBox->AddSlot()
+			.AutoHeight()
+			.Padding(12.f, 2.f, 0.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("\u2022 ") + Line.Mid(2)))
+				.AutoWrapText(true)
+				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			];
+		}
+		else if (Line.TrimStartAndEnd().IsEmpty())
+		{
+			VBox->AddSlot()
+			.AutoHeight()
+			.Padding(0.f, 4.f)
+			[
+				SNew(SBox).HeightOverride(1.f)
+			];
+		}
+		else
+		{
+			VBox->AddSlot()
+			.AutoHeight()
+			.Padding(0.f, 1.f, 0.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(Line))
+				.AutoWrapText(true)
+				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			];
+		}
+	}
+
+	return VBox;
 }
 
 // ============================================================================

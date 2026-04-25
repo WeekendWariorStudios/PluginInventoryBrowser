@@ -12,6 +12,7 @@ class STextBlock;
 class SMultiLineEditableText;
 class SButton;
 class SThrobber;
+class SBox;
 
 /**
  * SPluginDetailsWindow
@@ -64,7 +65,7 @@ private:
 	TSharedPtr<FSlateBrush> AIIconBrush;
 
 	// ---- Summary UI ---------------------------------------------------------
-	TSharedPtr<STextBlock>            SummaryText;
+	TSharedPtr<SBox>                  SummaryContainer;
 	TSharedPtr<SThrobber>             SummaryThrobber;
 	TSharedPtr<SButton>               SummaryRefreshButton;
 	bool                              bSummaryPending = false;
@@ -72,8 +73,8 @@ private:
 
 	// ---- Helpers ------------------------------------------------------------
 	void RequestSummary();
-
 	void OnSummaryReady(const FString& PluginName, const FString& Summary, bool bWasAI);
+	TSharedRef<SWidget> BuildMarkdownWidget(const FString& Markdown);
 
 	// ---- Enable / Disable ---------------------------------------------------
 	FReply OnToggleEnabled();

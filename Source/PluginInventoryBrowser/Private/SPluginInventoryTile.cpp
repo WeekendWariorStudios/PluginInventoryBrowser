@@ -244,7 +244,7 @@ FReply SPluginInventoryTile::OnMouseButtonDoubleClick(const FGeometry& /*InMyGeo
 {
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && EntryPtr.IsValid())
 	{
-		OnDoubleClickedDelegate.ExecuteIfBound(EntryPtr.ToSharedRef());
+		OnDoubleClickedDelegate.ExecuteIfBound(EntryPtr);
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();

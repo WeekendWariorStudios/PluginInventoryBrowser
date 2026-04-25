@@ -103,7 +103,7 @@ private:
 	// ---- Tile view callbacks ------------------------------------------------
 	TSharedRef<ITableRow> OnGenerateTile(FPluginInventoryEntryRef Item,
 	                                     const TSharedRef<STableViewBase>& OwnerTable);
-	void OnTileDoubleClicked(FPluginInventoryEntryRef Item);
+	void OnTileDoubleClicked(FPluginInventoryEntryPtr Item);
 
 	// ---- Model picker -------------------------------------------------------
 	TSharedRef<SWidget> BuildModelPickerWidget();

@@ -16,7 +16,7 @@
 class SPluginInventoryTile : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnTileDoubleClicked, FPluginInventoryEntryRef);
+	DECLARE_DELEGATE_OneParam(FOnTileDoubleClicked, FPluginInventoryEntryPtr);
 
 	SLATE_BEGIN_ARGS(SPluginInventoryTile)
 		: _Entry()

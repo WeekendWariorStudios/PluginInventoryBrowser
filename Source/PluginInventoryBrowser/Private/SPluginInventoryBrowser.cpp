@@ -885,11 +885,16 @@ TSharedRef<ITableRow> SPluginInventoryBrowser::OnGenerateTile(
 
 void SPluginInventoryBrowser::OnTileDoubleClicked(FPluginInventoryEntryRef Item)
 {
+	if (!Item.IsValid() || Item->Name.IsEmpty())
+	{
+		return;
+	}
+
 	SPluginDetailsWindow::FOnPluginStateChanged StateChangedDelegate;
 	StateChangedDelegate.BindSP(this, &SPluginInventoryBrowser::RebuildInventory);
 
 	TSharedRef<SWindow> NewWindow = SPluginDetailsWindow::Show(
-		Item,
+		Item.ToSharedRef(),
 		SelectedOllamaModel,
 		SummaryProvider,
 		StateChangedDelegate);

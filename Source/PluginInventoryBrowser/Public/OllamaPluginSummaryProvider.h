@@ -72,7 +72,11 @@ private:
 	void LoadCacheFromDisk();
 	void SaveCacheToDisk();
 
-	static FString BuildSummaryPrompt(const FPluginInventoryEntryRef& Entry);
+	/** Builds the system prompt and user message used for /api/generate. */
+	static void BuildSummaryPrompt(
+		const FPluginInventoryEntryRef& Entry,
+		FString& OutSystem,
+		FString& OutUser);
 
 	void OnGenerateResponse(
 		TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> Request,

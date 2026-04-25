@@ -215,30 +215,54 @@ void FOllamaPluginSummaryProvider::InvalidateCacheForModel(const FString& ModelN
 	return Summary;
 }
 
-/*static*/ FString FOllamaPluginSummaryProvider::BuildSummaryPrompt(const FPluginInventoryEntryRef& Entry)
+/*static*/ void FOllamaPluginSummaryProvider::BuildSummaryPrompt(
+	const FPluginInventoryEntryRef& Entry,
+	FString& OutSystem,
+	FString& OutUser)
 {
 	const FString& Desc = Entry->Description;
-	const FString TruncDesc = Desc.Len() > 500 ? Desc.Left(497) + TEXT("…") : Desc;
+	const FString TruncDesc = Desc.Len() > 800 ? Desc.Left(797) + TEXT("…") : Desc;
 
 	const FString PlatformList = Entry->SupportedTargetPlatforms.Num() > 0
 		? FString::Join(Entry->SupportedTargetPlatforms, TEXT(", "))
-		: TEXT("unspecified");
+		: TEXT("not specified");
 
-	return FString::Printf(
-		TEXT("You are a helpful assistant for Unreal Engine developers.\n")
-		TEXT("Summarize the following Unreal Engine plugin in 2-3 concise sentences.\n")
-		TEXT("Focus on what the plugin does and who would use it.\n")
-		TEXT("Do not repeat the plugin name or author as the first word.\n\n")
-		TEXT("Plugin name: %s\n")
-		TEXT("Friendly name: %s\n")
-		TEXT("Category: %s\n")
-		TEXT("Author: %s\n")
-		TEXT("Version: %s\n")
-		TEXT("Modules: %d\n")
-		TEXT("Dependencies: %d\n")
-		TEXT("Supported platforms: %s\n")
-		TEXT("Description: %s\n\n")
-		TEXT("Summary:"),
+	// ---- System role --------------------------------------------------------
+	OutSystem =
+		TEXT("You are an expert Unreal Engine developer writing plugin documentation.\n")
+		TEXT("When given plugin metadata, write a clear, accurate summary consisting of\n")
+		TEXT("exactly 2 paragraphs:\n")
+		TEXT("\n")
+		TEXT("  Paragraph 1 – What it does: Explain the plugin's core purpose, its main\n")
+		TEXT("  features or systems, and what problem it solves for developers. Use\n")
+		TEXT("  plain English. Do not start with the plugin name.\n")
+		TEXT("\n")
+		TEXT("  Paragraph 2 – Who should use it & how: Describe the ideal user\n")
+		TEXT("  (e.g. gameplay programmer, technical artist, solo dev), typical use\n")
+		TEXT("  cases or workflows, and any notable constraints such as platform\n")
+		TEXT("  limitations, required dependencies, or experimental status.\n")
+		TEXT("\n")
+		TEXT("Rules:\n")
+		TEXT("  - Write in third person, present tense.\n")
+		TEXT("  - Do NOT begin with the plugin name or author name.\n")
+		TEXT("  - Do NOT use bullet points, headers, or markdown formatting.\n")
+		TEXT("  - Do NOT include phrases like 'This plugin…' as the very first words.\n")
+		TEXT("  - Keep both paragraphs between 2 and 4 sentences each.\n")
+		TEXT("  - Separate the two paragraphs with a single blank line.\n")
+		TEXT("  - Output only the two paragraphs, nothing else.");
+
+	// ---- User message -------------------------------------------------------
+	OutUser = FString::Printf(
+		TEXT("Write a 2-paragraph summary for the following Unreal Engine plugin.\n\n")
+		TEXT("Name:        %s\n")
+		TEXT("Friendly:    %s\n")
+		TEXT("Category:    %s\n")
+		TEXT("Author:      %s\n")
+		TEXT("Version:     %s\n")
+		TEXT("Modules:     %d\n")
+		TEXT("Dependencies:%d\n")
+		TEXT("Platforms:   %s\n")
+		TEXT("Description: %s"),
 		*Entry->Name,
 		*Entry->FriendlyName,
 		*Entry->Category,

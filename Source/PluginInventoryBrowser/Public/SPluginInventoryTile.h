@@ -16,16 +16,22 @@
 class SPluginInventoryTile : public SCompoundWidget
 {
 public:
+	DECLARE_DELEGATE_OneParam(FOnTileDoubleClicked, FPluginInventoryEntryRef);
+
 	SLATE_BEGIN_ARGS(SPluginInventoryTile)
 		: _Entry()
 	{}
 		SLATE_ARGUMENT(FPluginInventoryEntryPtr, Entry)
+		SLATE_EVENT(FOnTileDoubleClicked, OnDoubleClicked)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+
 private:
-	FPluginInventoryEntryPtr EntryPtr;
+	FPluginInventoryEntryPtr   EntryPtr;
+	FOnTileDoubleClicked       OnDoubleClickedDelegate;
 
 	/** Dynamic image brush loaded from <PluginDir>/Resources/Icon128.png */
 	TSharedPtr<FSlateBrush> IconBrush;

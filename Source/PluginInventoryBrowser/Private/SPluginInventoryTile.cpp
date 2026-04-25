@@ -21,7 +21,8 @@ static const float IconSize   = 64.f;
 
 void SPluginInventoryTile::Construct(const FArguments& InArgs)
 {
-	EntryPtr = InArgs._Entry;
+	EntryPtr              = InArgs._Entry;
+	OnDoubleClickedDelegate = InArgs._OnDoubleClicked;
 	if (!EntryPtr.IsValid())
 	{
 		return;
@@ -237,6 +238,16 @@ const FSlateBrush* SPluginInventoryTile::GetIconBrush() const
 		return IconBrush.Get();
 	}
 	return FAppStyle::Get().GetBrush("Plugins.TabIcon");
+}
+
+FReply SPluginInventoryTile::OnMouseButtonDoubleClick(const FGeometry& /*InMyGeometry*/, const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && EntryPtr.IsValid())
+	{
+		OnDoubleClickedDelegate.ExecuteIfBound(EntryPtr.ToSharedRef());
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
 }
 
 #undef LOCTEXT_NAMESPACE

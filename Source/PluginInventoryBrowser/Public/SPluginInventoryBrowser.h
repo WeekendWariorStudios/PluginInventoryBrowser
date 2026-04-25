@@ -9,6 +9,9 @@
 #include "DirectoryWatcherModule.h"
 #include "PluginInventoryEntry.h"
 #include "PluginFilterState.h"
+#include "OllamaPluginSummaryProvider.h"
+
+class SWindow;
 
 /**
  * SPluginInventoryBrowser
@@ -68,6 +71,19 @@ private:
 	TSharedPtr<class SSearchBox>                     SearchBoxWidget;
 	TSharedPtr<class STextBlock>                     StatsLabel;
 
+	// ---- AI / Details -------------------------------------------------------
+	/** Shared Ollama provider (lives as long as this browser). */
+	TSharedPtr<FOllamaPluginSummaryProvider> SummaryProvider;
+
+	/** Currently selected Ollama model name (persisted in editor user config). */
+	FString SelectedOllamaModel;
+
+	/** Available model names fetched from Ollama (may be empty if offline). */
+	TArray<FString> AvailableOllamaModels;
+
+	/** Weak ref to the currently open details window (at most one at a time). */
+	TWeakPtr<SWindow> ActiveDetailsWindow;
+
 	// ---- Active timers ------------------------------------------------------
 	TSharedPtr<FActiveTimerHandle> RebuildTimerHandle;
 	TSharedPtr<FActiveTimerHandle> FilterTimerHandle;
@@ -87,6 +103,15 @@ private:
 	// ---- Tile view callbacks ------------------------------------------------
 	TSharedRef<ITableRow> OnGenerateTile(FPluginInventoryEntryRef Item,
 	                                     const TSharedRef<STableViewBase>& OwnerTable);
+	void OnTileDoubleClicked(FPluginInventoryEntryRef Item);
+
+	// ---- Model picker -------------------------------------------------------
+	TSharedRef<SWidget> BuildModelPickerWidget();
+	TSharedRef<SWidget> BuildModelPickerMenu();
+	void OnOllamaModelSelected(FString ModelName);
+	void OnAvailableModelsFetched(const TArray<FString>& Models);
+	FText GetSelectedModelText() const;
+	void RefreshAvailableModels();
 
 	// ---- Filter bar builders ------------------------------------------------
 	TSharedRef<SWidget> BuildToolbar();

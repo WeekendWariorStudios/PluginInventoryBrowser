@@ -2,6 +2,8 @@
 
 #include "SPluginInventoryBrowser.h"
 #include "SPluginInventoryTile.h"
+#include "SPluginDetailsWindow.h"
+#include "OllamaPluginSummaryProvider.h"
 #include "Interfaces/IPluginManager.h"
 #include "IDirectoryWatcher.h"
 #include "DirectoryWatcherModule.h"
@@ -324,6 +326,23 @@ namespace
 
 void SPluginInventoryBrowser::Construct(const FArguments& InArgs)
 {
+	// Initialise AI summary provider and restore persisted model
+	SummaryProvider = MakeShared<FOllamaPluginSummaryProvider>();
+
+	GConfig->GetString(
+		TEXT("PluginInventoryBrowser"),
+		TEXT("SelectedOllamaModel"),
+		SelectedOllamaModel,
+		GEditorPerProjectIni);
+
+	if (SelectedOllamaModel.IsEmpty())
+	{
+		SelectedOllamaModel = TEXT("qwen3:0.6b");
+	}
+
+	// Prime available models from Ollama (best-effort; updates AvailableOllamaModels)
+	RefreshAvailableModels();
+
 	RegisterDirectoryWatchers();
 	RebuildInventory(); // synchronous on first open
 
@@ -519,6 +538,12 @@ TSharedRef<SWidget> SPluginInventoryBrowser::BuildToolbar()
 				[
 					SNew(STextBlock).Text(LOCTEXT("ClearBtn", "✕ Clear"))
 				]
+			]
+
+			// AI Model picker
+			+ SWrapBox::Slot()
+			[
+				BuildModelPickerWidget()
 			]
 		];
 }
@@ -854,7 +879,22 @@ TSharedRef<ITableRow> SPluginInventoryBrowser::OnGenerateTile(
 		[
 			SNew(SPluginInventoryTile)
 			.Entry(Item)
+			.OnDoubleClicked(this, &SPluginInventoryBrowser::OnTileDoubleClicked)
 		];
+}
+
+void SPluginInventoryBrowser::OnTileDoubleClicked(FPluginInventoryEntryRef Item)
+{
+	SPluginDetailsWindow::FOnPluginStateChanged StateChangedDelegate;
+	StateChangedDelegate.BindSP(this, &SPluginInventoryBrowser::RebuildInventory);
+
+	TSharedRef<SWindow> NewWindow = SPluginDetailsWindow::Show(
+		Item,
+		SelectedOllamaModel,
+		SummaryProvider,
+		StateChangedDelegate);
+
+	ActiveDetailsWindow = NewWindow;
 }
 
 // ============================================================================
@@ -1021,6 +1061,116 @@ TArray<FString> SPluginInventoryBrowser::CollectCategories() const
 	TArray<FString> Sorted = Cats.Array();
 	Sorted.Sort();
 	return Sorted;
+}
+
+// ============================================================================
+// AI Model picker
+// ============================================================================
+
+TSharedRef<SWidget> SPluginInventoryBrowser::BuildModelPickerWidget()
+{
+	return SNew(SComboButton)
+		.ToolTipText(LOCTEXT("ModelPickerTip",
+			"Select the local Ollama model used to generate AI plugin summaries."))
+		.ButtonContent()
+		[
+			SNew(STextBlock)
+			.Text(this, &SPluginInventoryBrowser::GetSelectedModelText)
+		]
+		.MenuContent()
+		[
+			BuildModelPickerMenu()
+		];
+}
+
+TSharedRef<SWidget> SPluginInventoryBrowser::BuildModelPickerMenu()
+{
+	FMenuBuilder MB(true, nullptr);
+
+	MB.BeginSection("Models", LOCTEXT("ModelSection", "Ollama Model"));
+
+	// Always include the selected model and the default in the list
+	TSet<FString> ShownModels;
+	ShownModels.Add(TEXT("qwen3:0.6b"));
+	ShownModels.Add(SelectedOllamaModel);
+	for (const FString& M : AvailableOllamaModels)
+	{
+		ShownModels.Add(M);
+	}
+
+	TArray<FString> SortedModels = ShownModels.Array();
+	SortedModels.Sort();
+
+	for (const FString& ModelName : SortedModels)
+	{
+		const FString ModelNameCopy = ModelName;
+		MB.AddMenuEntry(
+			FText::FromString(ModelName), FText::GetEmpty(), FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SPluginInventoryBrowser::OnOllamaModelSelected, ModelNameCopy),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, ModelNameCopy]
+				{
+					return SelectedOllamaModel == ModelNameCopy;
+				})),
+			NAME_None, EUserInterfaceActionType::RadioButton);
+	}
+
+	MB.EndSection();
+
+	MB.BeginSection("Actions", LOCTEXT("ModelActionsSection", "Actions"));
+	MB.AddMenuEntry(
+		LOCTEXT("RefreshModels", "Refresh model list"),
+		LOCTEXT("RefreshModelsTip", "Re-query the local Ollama instance for available models."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateSP(this, &SPluginInventoryBrowser::RefreshAvailableModels)));
+	MB.EndSection();
+
+	return MB.MakeWidget();
+}
+
+void SPluginInventoryBrowser::OnOllamaModelSelected(FString ModelName)
+{
+	if (SelectedOllamaModel == ModelName)
+	{
+		return;
+	}
+
+	if (SummaryProvider.IsValid())
+	{
+		SummaryProvider->InvalidateCacheForModel(SelectedOllamaModel);
+	}
+
+	SelectedOllamaModel = ModelName;
+
+	GConfig->SetString(
+		TEXT("PluginInventoryBrowser"),
+		TEXT("SelectedOllamaModel"),
+		*SelectedOllamaModel,
+		GEditorPerProjectIni);
+}
+
+FText SPluginInventoryBrowser::GetSelectedModelText() const
+{
+	return FText::Format(LOCTEXT("ModelPickerLabel", "AI: {0}"),
+		FText::FromString(SelectedOllamaModel));
+}
+
+void SPluginInventoryBrowser::RefreshAvailableModels()
+{
+	if (!SummaryProvider.IsValid())
+	{
+		return;
+	}
+
+	FOllamaPluginSummaryProvider::FOnModelsReady Delegate;
+	Delegate.BindSP(this, &SPluginInventoryBrowser::OnAvailableModelsFetched);
+	SummaryProvider->FetchAvailableModels(Delegate);
+}
+
+void SPluginInventoryBrowser::OnAvailableModelsFetched(const TArray<FString>& Models)
+{
+	AvailableOllamaModels = Models;
 }
 
 #undef LOCTEXT_NAMESPACE

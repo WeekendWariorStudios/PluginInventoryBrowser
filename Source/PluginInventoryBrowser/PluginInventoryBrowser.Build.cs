@@ -30,6 +30,7 @@ public class PluginInventoryBrowser : ModuleRules
 			"DesktopPlatform",    // Save file dialogs for export
 			"Json",
 			"JsonUtilities",
+			"HTTP",               // Ollama REST API client
 		});
 	}
 }

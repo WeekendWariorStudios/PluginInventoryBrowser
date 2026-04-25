@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Plugin Inventory Browser",
+	"Description": "Live editor tool that shows all discovered Unreal Engine and project plugins in a searchable, filterable tile grid backed by IPluginManager.",
+	"Category": "Editor",
+	"CreatedBy": "StateOfRuin",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "PluginInventoryBrowser",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}

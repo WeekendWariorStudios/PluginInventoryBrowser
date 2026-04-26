@@ -68,6 +68,8 @@ private:
 	TSharedPtr<SBox>                  SummaryContainer;
 	TSharedPtr<SThrobber>             SummaryThrobber;
 	TSharedPtr<SButton>               SummaryRefreshButton;
+	TSharedPtr<SButton>               SummaryCopyButton;
+	FString                           LastSummaryText;
 	bool                              bSummaryPending = false;
 	bool                              bRestartRequired = false;
 

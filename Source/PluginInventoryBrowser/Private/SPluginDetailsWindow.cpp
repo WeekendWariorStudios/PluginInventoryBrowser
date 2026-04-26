@@ -20,6 +20,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "SPluginDetailsWindow"
@@ -342,6 +343,78 @@ void SPluginDetailsWindow::Construct(const FArguments& InArgs)
 						]
 					]
 				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(6.f, 0.f, 0.f, 0.f)
+				[
+					SAssignNew(SummaryCopyButton, SButton)
+					.Visibility(EVisibility::Collapsed)
+					.ToolTipText(LOCTEXT("CopySummaryTip", "Copy the AI summary to the clipboard."))
+					.OnClicked_Lambda([this]() -> FReply
+					{
+						FString ClipboardText;
+						if (EntryPtr.IsValid())
+						{
+							ClipboardText += FString::Printf(TEXT("Plugin: %s\n"), *EntryPtr->FriendlyName);
+							if (!EntryPtr->VersionName.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Version: %s\n"), *EntryPtr->VersionName);
+							}
+							if (!EntryPtr->Category.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Category: %s\n"), *EntryPtr->Category);
+							}
+							if (!EntryPtr->CreatedBy.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Author: %s\n"), *EntryPtr->CreatedBy);
+							}
+							if (!EntryPtr->Description.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Description: %s\n"), *EntryPtr->Description);
+							}
+							if (!EntryPtr->MarketplaceURL.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Marketplace: %s\n"), *EntryPtr->MarketplaceURL);
+							}
+							if (!EntryPtr->DocsURL.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Docs: %s\n"), *EntryPtr->DocsURL);
+							}
+							if (!EntryPtr->SupportURL.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Support: %s\n"), *EntryPtr->SupportURL);
+							}
+							if (!EntryPtr->CreatedByURL.IsEmpty())
+							{
+								ClipboardText += FString::Printf(TEXT("Author URL: %s\n"), *EntryPtr->CreatedByURL);
+							}
+							ClipboardText += TEXT("\n--- AI Summary ---\n");
+						}
+						ClipboardText += LastSummaryText;
+						FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
+						return FReply::Handled();
+					})
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(0.f, 0.f, 5.f, 0.f)
+						[
+							SNew(SImage)
+							.Image(FAppStyle::Get().GetBrush("GenericCommands.Copy"))
+							.DesiredSizeOverride(FVector2D(16.f, 16.f))
+						]
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(STextBlock).Text(LOCTEXT("CopySummaryBtn", "Copy Results"))
+						]
+					]
+				]
 			]
 
 			+ SScrollBox::Slot()
@@ -439,6 +512,7 @@ void SPluginDetailsWindow::RequestSummary()
 void SPluginDetailsWindow::OnSummaryReady(const FString& /*PluginName*/, const FString& Summary, bool /*bWasAI*/)
 {
 	bSummaryPending = false;
+	LastSummaryText = Summary;
 	if (SummaryContainer.IsValid())
 	{
 		SummaryContainer->SetContent(BuildMarkdownWidget(Summary));
@@ -450,6 +524,10 @@ void SPluginDetailsWindow::OnSummaryReady(const FString& /*PluginName*/, const F
 	if (SummaryRefreshButton.IsValid())
 	{
 		SummaryRefreshButton->SetEnabled(true);
+	}
+	if (SummaryCopyButton.IsValid())
+	{
+		SummaryCopyButton->SetVisibility(EVisibility::Visible);
 	}
 }
 
